@@ -1,82 +1,121 @@
 (function() {
-  var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+  var Physics,
+    slice = [].slice,
+    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
 
+  window.Physics = Physics = {};
+
   (function(p) {
-    p.AnimationError = (function(superClass) {
-      extend(AnimationError, superClass);
-
-      function AnimationError() {
-        return AnimationError.__super__.constructor.apply(this, arguments);
-      }
-
-      return AnimationError;
-
-    })(Error);
-    return p.Animation = (function() {
-      function Animation(delay) {
-        this.delay = delay;
-      }
-
-      Animation.prototype.run = function(fn, options) {
-        var iterations;
-        iterations = options.iterations;
-        if (this.delay) {
-          return this.runWithDelay(fn, iterations);
+    var circlesCollide;
+    circlesCollide = function(left, right) {
+      var combinedSize, dx, dy;
+      combinedSize = left.radius + right.radius;
+      dx = left.position().x - right.position().x;
+      dy = left.position().y - right.position().y;
+      return dx * dx + dy * dy < combinedSize * combinedSize;
+    };
+    return p.collisions = {
+      circles: function(left, right) {
+        var collisionVector, combinedSize, overlap;
+        if (circlesCollide(left, right)) {
+          combinedSize = left.radius + right.radius;
+          overlap = combinedSize - left.distanceTo(right);
+          collisionVector = left.vectorTowards(right);
+          collisionVector.scale(overlap);
+          return collisionVector;
         } else {
-          return this.runWithoutDelay(fn, iterations);
+          return false;
         }
-      };
-
-      Animation.prototype.runWithDelay = function(fn, iterations, count) {
-        if (count == null) {
-          count = 0;
+      },
+      circleOutOfBounds: function(circle, bounds) {
+        var edgeBottom, edgeLeft, edgeRight, edgeTop, rectBottom, rectLeft, rectRight, rectTop, xCorrection, yCorrection;
+        edgeLeft = circle.position().x - circle.radius;
+        edgeRight = circle.position().x + circle.radius;
+        edgeTop = circle.position().y - circle.radius;
+        edgeBottom = circle.position().y + circle.radius;
+        rectLeft = bounds.position().x;
+        rectRight = bounds.position().x + bounds.width;
+        rectTop = bounds.position().y;
+        rectBottom = bounds.position().y + bounds.height;
+        xCorrection = yCorrection = 0;
+        if (edgeLeft < rectLeft) {
+          xCorrection = rectLeft - edgeLeft;
         }
-        return window.setTimeout((function(_this) {
-          return function() {
-            fn();
-            if (iterations) {
-              count = count + 1;
-              if (count < iterations) {
-                return _this.runWithDelay(fn, iterations, count);
-              }
-            } else {
-              return _this.runWithDelay(fn);
-            }
-          };
-        })(this), this.delay);
-      };
-
-      Animation.prototype.runWithoutDelay = function(fn, iterations) {
-        var i, j, len, results;
-        if (!iterations) {
-          throw p.AnimationError;
+        if (edgeRight > rectRight) {
+          xCorrection = rectRight - edgeRight;
         }
-        results = [];
-        for (j = 0, len = iterations.length; j < len; j++) {
-          i = iterations[j];
-          results.push(fn());
+        if (edgeTop < rectTop) {
+          yCorrection = rectTop - edgeTop;
         }
-        return results;
-      };
-
-      return Animation;
-
-    })();
+        if (edgeBottom > rectBottom) {
+          yCorrection = rectBottom - edgeBottom;
+        }
+        if (xCorrection || yCorrection) {
+          return new p.Vector(xCorrection, yCorrection);
+        } else {
+          return false;
+        }
+      }
+    };
   })(Physics);
 
   (function(p) {
-    return p.Circle = (function(superClass) {
-      extend(Circle, superClass);
-
+    return p.Circle = (function() {
       function Circle(x, y, radius) {
         this.radius = radius;
-        this.particle = new p.Particle(this.x, this.y);
+        this.particle = new p.Particle(x, y);
       }
+
+      Circle.prototype.position = function() {
+        return this.particle.position;
+      };
+
+      Circle.prototype.acceleration = function() {
+        if (this.frozen) {
+          new p.Vector(0, 0);
+        }
+        return this.particle.acceleration;
+      };
+
+      Circle.prototype.velocity = function() {
+        if (this.frozen) {
+          new p.Vector(0, 0);
+        }
+        return this.particle.velocity;
+      };
+
+      Circle.prototype.applyForce = function(vector) {
+        return this.acceleration().add(vector);
+      };
+
+      Circle.prototype.frozen = false;
+
+      Circle.prototype.collidesWith = function(circle) {};
+
+      Circle.prototype.move = function() {
+        var args, ref;
+        args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
+        if (this.frozen) {
+          return;
+        }
+        return (ref = this.particle).move.apply(ref, args);
+      };
+
+      Circle.prototype.distanceTo = function(other) {
+        var left, right;
+        left = this.position();
+        right = other.position();
+        return Math.sqrt((left.x - right.x) * (left.x - right.x) + (left.y - right.y) * (left.y - right.y));
+      };
+
+      Circle.prototype.vectorTowards = function(other) {
+        return new p.Vector(this.position().x - other.position().x, this.position().y - other.position().y).normalized();
+      };
 
       return Circle;
 
-    })(p.Particle);
+    })();
   })(Physics);
 
   (function(p) {
@@ -93,12 +132,17 @@
         return this.acceleration.add(vector);
       };
 
-      Particle.prototype.move = function(friction) {
-        if (friction == null) {
-          friction = 1;
+      Particle.prototype.move = function(opts) {
+        var cap, friction;
+        if (opts == null) {
+          opts = {};
         }
+        friction = opts.friction, cap = opts.cap;
         this.velocity.add(this.acceleration);
         this.velocity.scale(friction);
+        if (cap && this.velocity.magnitude() > cap) {
+          this.velocity.normalized().scale(cap);
+        }
         return this.position.add(this.velocity);
       };
 
@@ -108,7 +152,9 @@
   })(Physics);
 
   (function(p) {
-    return p.Rectangle = (function() {
+    return p.Rectangle = (function(superClass) {
+      extend(Rectangle, superClass);
+
       function Rectangle(x, y, width, height) {
         this.width = width;
         this.height = height;
@@ -117,25 +163,133 @@
 
       return Rectangle;
 
-    })();
+    })(p.Circle);
   })(Physics);
-
-  window.Physics || (window.Physics = {});
 
   (function(p) {
     return p.Spring = (function() {
-      function Spring(left, right, options) {
-        this.left = left;
-        this.right = right;
-        this.stiffness = options.stiffness, this.length = options.length;
+      function Spring(left1, right1, options) {
+        this.left = left1;
+        this.right = right1;
+        this.stiffness = options.stiffness, this.desiredLength = options.desiredLength, this.dampening = options.dampening;
       }
+
+      Spring.prototype.actualLength = function() {
+        return Math.abs(this.left.distanceTo(this.right));
+      };
+
+      Spring.prototype.resting = function() {
+        return this.actualLength() === this.desiredLength;
+      };
+
+      Spring.prototype.stress = function() {
+        return this.actualLength() - this.desiredLength;
+      };
+
+      Spring.prototype.attraction = function() {
+        return -this.stiffness * this.stress();
+      };
+
+      Spring.prototype.relativeVelocity = function() {
+        return this.left.velocity().copy().add(this.right.velocity().copy().scale(-1));
+      };
+
+      Spring.prototype.springCalc = function(normalizedVector) {
+        normalizedVector.div(this.actualLength()).scale(this.attraction());
+        return normalizedVector.sub(this.relativeVelocity().scale(-this.dampening));
+      };
+
+      Spring.prototype.update = function() {
+        var leftForce, normal, rightForce;
+        normal = this.left.vectorTowards(this.right);
+        leftForce = this.springCalc(normal).copy();
+        normal = this.right.vectorTowards(this.left);
+        rightForce = this.springCalc(normal).copy();
+        this.left.applyForce(leftForce);
+        return this.right.applyForce(rightForce);
+      };
 
       return Spring;
 
     })();
   })(Physics);
 
-  (function(d) {
+  (function(p) {
+    p.TimerError = (function(superClass) {
+      extend(TimerError, superClass);
+
+      function TimerError() {
+        return TimerError.__super__.constructor.apply(this, arguments);
+      }
+
+      return TimerError;
+
+    })(Error);
+    return p.Timer = (function() {
+      function Timer(delay1) {
+        this.delay = delay1;
+      }
+
+      Timer.prototype.run = function(fn, options) {
+        var iterations;
+        if (options == null) {
+          options = {};
+        }
+        iterations = options.iterations;
+        this.running = true;
+        if (this.delay) {
+          return this.runWithDelay(fn, iterations);
+        } else {
+          return this.runWithoutDelay(fn, iterations);
+        }
+      };
+
+      Timer.prototype.stop = function() {
+        return this.running = false;
+      };
+
+      Timer.prototype.runWithDelay = function(fn, iterations, count) {
+        if (count == null) {
+          count = 0;
+        }
+        return window.setTimeout((function(_this) {
+          return function() {
+            if (!_this.running) {
+              return;
+            }
+            fn();
+            if (iterations) {
+              count = count + 1;
+              if (count < iterations) {
+                return _this.runWithDelay(fn, iterations, count);
+              }
+            } else {
+              return _this.runWithDelay(fn);
+            }
+          };
+        })(this), this.delay);
+      };
+
+      Timer.prototype.runWithoutDelay = function(fn, iterations) {
+        var count, results;
+        if (!iterations) {
+          throw p.TimerError;
+        }
+        count = 0;
+        results = [];
+        while (count < iterations) {
+          fn();
+          results.push(count = count + 1);
+        }
+        return results;
+      };
+
+      return Timer;
+
+    })();
+  })(Physics);
+
+  (function(p) {
     return p.Vector = (function() {
       function Vector(x1, y1) {
         this.x = x1;
@@ -144,12 +298,28 @@
 
       Vector.prototype.add = function(other) {
         this.x += other.x;
-        return this.y += other.y;
+        this.y += other.y;
+        return this;
       };
 
-      Vector.prototype.multiplyScalar = function(value) {
+      Vector.prototype.sub = function(other) {
+        this.x -= other.x;
+        this.y -= other.y;
+        return this;
+      };
+
+      Vector.prototype.div = function(value) {
+        if (value !== 0) {
+          this.x /= value;
+          this.y /= value;
+        }
+        return this;
+      };
+
+      Vector.prototype.scale = function(value) {
         this.x *= value;
-        return this.y *= value;
+        this.y *= value;
+        return this;
       };
 
       Vector.prototype.magnitude = function() {
@@ -164,6 +334,24 @@
         return new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle));
       };
 
+      Vector.prototype.normalized = function() {
+        var mag;
+        mag = this.magnitude();
+        if (mag !== 0) {
+          this.x = this.x / mag;
+          this.y = this.y / mag;
+        }
+        return this;
+      };
+
+      Vector.prototype.toArray = function() {
+        return [this.x, this.y];
+      };
+
+      Vector.prototype.copy = function() {
+        return new p.Vector(this.x, this.y);
+      };
+
       return Vector;
 
     })();
@@ -174,19 +362,15 @@
       function View(particle, $el) {
         this.particle = particle;
         this.$el = $el;
-        this.particle.on('change', (function(_this) {
-          return function() {
-            return _this.render();
-          };
-        })(this));
       }
 
       View.prototype.render = function() {
-        return this.$el.css({
+        this.$el.css({
           position: 'absolute',
-          top: this.particle.get('y') + 'px',
-          left: this.particle.get('x') + 'px'
+          top: this.particle.position().y - this.particle.radius + 'px',
+          left: this.particle.position().x - this.particle.radius + 'px'
         });
+        return this.particle.dirty = false;
       };
 
       return View;
@@ -196,8 +380,10 @@
 
   (function(p) {
     return p.World = (function() {
-      function World(positions, options) {
-        this.width = options.width, this.height = options.height, this.animationDelay = options.animationDelay;
+      function World(bodies, springs, options) {
+        this.bodies = bodies;
+        this.springs = springs;
+        this.width = options.width, this.height = options.height, this.animationDelay = options.animationDelay, this.friction = options.friction, this.cap = options.cap;
         this.boundingBox = new p.Rectangle(0, 0, this.width, this.height);
       }
 
@@ -210,9 +396,133 @@
         });
       };
 
-      World.prototype.animate = function() {};
+      World.prototype.handleCollision = function(left, right, collisionVector) {
+        collisionVector.scale(0.1);
+        return left.applyForce(collisionVector);
+      };
+
+      World.prototype.handleOutOfBounds = function(item, collisionVector) {
+        item.position().x = 150;
+        item.position().y = 150;
+        return item.velocity().scale(-1);
+      };
+
+      World.prototype.testCollisions = function(item) {
+        var collisionVector, i, len, other, ref, results;
+        ref = this.bodies;
+        results = [];
+        for (i = 0, len = ref.length; i < len; i++) {
+          other = ref[i];
+          if (item !== other) {
+            if (collisionVector = p.collisions.circles(item, other)) {
+              results.push(this.handleCollision(item, other, collisionVector));
+            } else {
+              results.push(void 0);
+            }
+          }
+        }
+        return results;
+      };
+
+      World.prototype.testBounds = function(item) {
+        var collisionVector;
+        if (collisionVector = p.collisions.circleOutOfBounds(item, this.boundingBox)) {
+          return this.handleOutOfBounds(item, collisionVector);
+        }
+      };
+
+      World.prototype.updateLoop = function() {
+        var i, item, j, len, len1, ref, ref1, results, spring;
+        ref = this.springs;
+        for (i = 0, len = ref.length; i < len; i++) {
+          spring = ref[i];
+          spring.update();
+        }
+        ref1 = this.bodies;
+        results = [];
+        for (j = 0, len1 = ref1.length; j < len1; j++) {
+          item = ref1[j];
+          this.testBounds(item);
+          this.testCollisions(item);
+          results.push(item.move({
+            friction: this.friction,
+            cap: this.cap
+          }));
+        }
+        return results;
+      };
+
+      World.prototype.start = function(delay, iterations) {
+        return this.timer || (this.timer = new p.Timer(delay).run(((function(_this) {
+          return function() {
+            return _this.updateLoop();
+          };
+        })(this)), {
+          iterations: iterations
+        }));
+      };
+
+      World.prototype.stop = function() {
+        this.timer.stop();
+        return this.timer = null;
+      };
 
       return World;
+
+    })();
+  })(Physics);
+
+  (function(p) {
+    var animFn;
+    animFn = window.requestAnimationFrame || function(fn) {
+      return window.setTimeout(fn, 16);
+    };
+    return p.WorldView = (function() {
+      function WorldView(world, particleViews, $el) {
+        this.world = world;
+        this.particleViews = particleViews;
+        this.$el = $el;
+      }
+
+      WorldView.prototype.render = function() {
+        var i, len, ref, results, view;
+        ref = this.particleViews;
+        results = [];
+        for (i = 0, len = ref.length; i < len; i++) {
+          view = ref[i];
+          results.push(view.render());
+        }
+        return results;
+      };
+
+      WorldView.prototype._loop = function() {
+        return animFn((function(_this) {
+          return function() {
+            if (_this.running) {
+              _this.render();
+              return _this._loop();
+            }
+          };
+        })(this));
+      };
+
+      WorldView.prototype.start = function() {
+        if (this.running) {
+          return;
+        }
+        this.running = true;
+        return this._loop();
+      };
+
+      WorldView.prototype.stop = function() {
+        return this.running = false;
+      };
+
+      WorldView.prototype.fpsToMs = function(fps) {
+        return 1000 / fps;
+      };
+
+      return WorldView;
 
     })();
   })(Physics);
