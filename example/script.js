@@ -19,6 +19,8 @@
     return views.push(new Physics.View(particle, $sign));
   });
 
+  signs[0].frozen = true;
+
   springs = (function() {
     var i, len, results;
     results = [];
@@ -26,7 +28,7 @@
       sign = signs[i];
       if (sign !== signs[0]) {
         results.push(new Physics.Spring(sign, signs[0], {
-          stiffness: 2,
+          stiffness: 1,
           desiredLength: 50,
           dampening: 0.5
         }));
@@ -38,7 +40,7 @@
   world = new Physics.World(signs, springs, {
     width: 800,
     height: 800,
-    friction: 0.1
+    friction: 0.5
   });
 
   worldView = new Physics.WorldView(world, views, $world);

@@ -12,5 +12,6 @@ do (p = Physics) ->
       {friction, cap} = opts
       @velocity.add @acceleration
       @velocity.scale friction
+      @acceleration.scale friction
       @velocity.normalized().scale(cap) if cap && @velocity.magnitude() > cap
       @position.add @velocity

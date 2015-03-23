@@ -8,14 +8,13 @@ do (p = Physics) ->
       @boundingBox.set(width: @width, height: @height)
 
     handleCollision: (left, right, collisionVector) ->
-      collisionVector.scale 0.1 # will be tested twice, so don't overdo it
+      left.position().add collisionVector if @firmCollisions || true
+      collisionVector.normalized().scale 1 # will be tested twice, so don't overdo it
 
       left.applyForce collisionVector
 
     handleOutOfBounds: (item, collisionVector) ->
-      item.position().x = 150
-      item.position().y = 150
-      item.velocity().scale(-1)
+      item.acceleration().add collisionVector
 
     testCollisions: (item) ->
       for other in @bodies when item != other

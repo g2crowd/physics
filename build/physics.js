@@ -140,6 +140,7 @@
         friction = opts.friction, cap = opts.cap;
         this.velocity.add(this.acceleration);
         this.velocity.scale(friction);
+        this.acceleration.scale(friction);
         if (cap && this.velocity.magnitude() > cap) {
           this.velocity.normalized().scale(cap);
         }
@@ -191,22 +192,25 @@
       };
 
       Spring.prototype.relativeVelocity = function() {
-        return this.left.velocity().copy().add(this.right.velocity().copy().scale(-1));
+        return this.left.velocity().copy().sub(this.right.velocity().copy());
       };
 
-      Spring.prototype.springCalc = function(normalizedVector) {
-        normalizedVector.div(this.actualLength()).scale(this.attraction());
-        return normalizedVector.sub(this.relativeVelocity().scale(-this.dampening));
+      Spring.prototype.calcForce = function(left, right) {
+        var actual, fx, fy, norm, vel;
+        actual = this.actualLength();
+        norm = left.vectorTowards(right);
+        vel = left.velocity().copy().sub(right.velocity());
+        fx = -this.stiffness * (actual - this.desiredLength) * (norm.x / actual) - this.dampening * vel.x;
+        fy = -this.stiffness * (actual - this.desiredLength) * (norm.y / actual) - this.dampening * vel.y;
+        return new p.Vector(fx, fy);
       };
 
       Spring.prototype.update = function() {
-        var leftForce, normal, rightForce;
-        normal = this.left.vectorTowards(this.right);
-        leftForce = this.springCalc(normal).copy();
-        normal = this.right.vectorTowards(this.left);
-        rightForce = this.springCalc(normal).copy();
+        var leftForce, rightForce;
+        leftForce = this.calcForce(this.left, this.right);
+        rightForce = this.calcForce(this.right, this.left);
         this.left.applyForce(leftForce);
-        return this.right.applyForce(rightForce);
+        return this.right.applyForce(leftForce.scale(-1));
       };
 
       return Spring;
@@ -335,11 +339,11 @@
       };
 
       Vector.prototype.normalized = function() {
-        var mag;
-        mag = this.magnitude();
-        if (mag !== 0) {
-          this.x = this.x / mag;
-          this.y = this.y / mag;
+        var mag, num;
+        if (mag = this.magnitude()) {
+          num = 1.0 / mag;
+          this.x *= num;
+          this.y *= num;
         }
         return this;
       };
@@ -397,14 +401,15 @@
       };
 
       World.prototype.handleCollision = function(left, right, collisionVector) {
-        collisionVector.scale(0.1);
+        if (this.firmCollisions || true) {
+          left.position().add(collisionVector);
+        }
+        collisionVector.normalized().scale(1);
         return left.applyForce(collisionVector);
       };
 
       World.prototype.handleOutOfBounds = function(item, collisionVector) {
-        item.position().x = 150;
-        item.position().y = 150;
-        return item.velocity().scale(-1);
+        return item.acceleration().add(collisionVector);
       };
 
       World.prototype.testCollisions = function(item) {

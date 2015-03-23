@@ -34,10 +34,10 @@ do (p = Physics) ->
       new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle))
 
     normalized: ->
-      mag = @magnitude()
-      if mag != 0
-        @x = @x / mag
-        @y = @y / mag
+      if mag = @magnitude()
+        num = 1.0 / mag
+        this.x *= num
+        this.y *= num
 
       this
 
