@@ -1,1 +1,3 @@
-window.Physics = Physics = {}
+window.Physics = {}
+window.Physics.Behavior = {}
+window.Physics.Integrator = {}

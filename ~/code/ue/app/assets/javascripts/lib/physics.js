@@ -16,14 +16,11 @@
         if (opts == null) {
           opts = {};
         }
-        velocity = opts.velocity, acceleration = opts.acceleration, this.role = opts.role, this.ethereal = opts.ethereal;
+        velocity = opts.velocity, acceleration = opts.acceleration, this.mass = opts.mass, this.role = opts.role;
         this.position = new p.Vector(x, y);
         this.velocity = velocity || new p.Vector(0, 0);
         this.acceleration = acceleration || new p.Vector(0, 0);
-        this.setMass(opts.mass);
-        if (this.ethereal == null) {
-          this.ethereal = false;
-        }
+        this.mass || (this.mass = 1);
       }
 
       Particle.prototype.dynamic = function() {
@@ -63,7 +60,7 @@
       };
 
       Particle.prototype.vectorTowards = function(other) {
-        return new p.Vector(other.position.x - this.position.x, other.position.y - this.position.y).normalize();
+        return new p.Vector(this.position.x - other.position.x, this.position.y - other.position.y).normalize();
       };
 
       Particle.prototype.occupiesSameSpaceAs = function(other) {
@@ -99,7 +96,8 @@
       };
 
       ConstantFriction.prototype.applyFriction = function(body) {
-        return body.velocity.scale(this.factor);
+        body.velocity.scale(this.factor);
+        return body.acceleration.scale(this.factor);
       };
 
       return ConstantFriction;
@@ -133,12 +131,7 @@
 
       EdgeCollisions.prototype.handleCollision = function(item, collisionVector) {
         item.translate(collisionVector);
-        if (collisionVector.x !== 0) {
-          item.velocity.x *= -this.restitution;
-        }
-        if (collisionVector.y !== 0) {
-          return item.velocity.y *= -this.restitution;
-        }
+        return item.applyForce(collisionVector.scale(this.restitution));
       };
 
       return EdgeCollisions;
@@ -148,8 +141,8 @@
 
   (function(p, b) {
     return b.Gravity = (function() {
-      function Gravity(force1) {
-        this.force = force1 != null ? force1 : new p.Vector(0, 9.81);
+      function Gravity(force) {
+        this.force = force != null ? force : new p.Vector(0, 9.81);
       }
 
       Gravity.prototype.update = function(bodies) {
@@ -189,18 +182,15 @@
 
       ParticleCollisions.prototype.testCollisions = function(body, bodies) {
         var collisionVector, j, len, other, results;
-        if (body.ethereal) {
-          return;
-        }
         results = [];
         for (j = 0, len = bodies.length; j < len; j++) {
           other = bodies[j];
-          if (!(body !== other && !other.ethereal)) {
+          if (!(body !== other)) {
             continue;
           }
           this.correctPerfectOverlays(body, other);
           if (collisionVector = p.collisions.collide(body, other)) {
-            results.push(this.handleCollision(body, collisionVector, other));
+            results.push(this.handleCollision(body, collisionVector));
           } else {
             results.push(void 0);
           }
@@ -208,36 +198,18 @@
         return results;
       };
 
-      ParticleCollisions.prototype.handleCollision = function(body, collisionVector, other) {
+      ParticleCollisions.prototype.handleCollision = function(body, collisionVector) {
         if (this.firm) {
-          return this.bounceOff(body, other, collisionVector);
+          body.translate(collisionVector);
+          return body.applyForce(collisionVector.scale(this.restitution));
         } else {
           return body.applyForce(collisionVector.scale(this.restitution));
         }
       };
 
-      ParticleCollisions.prototype.bounceOff = function(a, b, collisionVector) {
-        a.translate(collisionVector.scale(0.5));
-        a.applyForce(collisionVector);
-        b.translate(collisionVector.scale(-1));
-        b.applyForce(collisionVector);
-        if (collisionVector.x !== 0) {
-          a.velocity.x *= -this.restitution;
-          b.velocity.x *= -this.restitution;
-        }
-        if (collisionVector.y !== 0) {
-          a.velocity.y *= -this.restitution;
-          return b.velocity.y *= -this.restitution;
-        }
-      };
-
       ParticleCollisions.prototype.correctPerfectOverlays = function(a, b) {
-        var angle, force;
         if (a.occupiesSameSpaceAs(b)) {
-          angle = Math.random() * 2 * Math.PI;
-          force = new p.Vector(Math.cos(angle), Math.sin(angle)).scale(a.rightEdge() - a.leftEdge());
-          console.log(force);
-          return a.applyForce(force);
+          return a.translate(new p.Vector(1, 1));
         }
       };
 
@@ -246,36 +218,24 @@
     })();
   })(Physics, Physics.Behavior);
 
-  (function(p, b) {
+  (function(b) {
     return b.Springs = (function() {
       function Springs(list) {
-        this.list = list != null ? list : [];
+        this.list = list;
       }
 
       Springs.prototype.addNew = function() {
         var args;
         args = 1 <= arguments.length ? slice.call(arguments, 0) : [];
-        return this.add((function(func, args, ctor) {
+        return this.list.push((function(func, args, ctor) {
           ctor.prototype = func.prototype;
           var child = new ctor, result = func.apply(child, args);
           return Object(result) === result ? result : child;
-        })(p.Spring, args, function(){}));
+        })(p.Physics.Spring, args, function(){}));
       };
 
       Springs.prototype.add = function(spring) {
-        this.list.push(spring);
-        return spring;
-      };
-
-      Springs.prototype.setAll = function(opts) {
-        var j, len, ref, results, spring;
-        ref = this.list;
-        results = [];
-        for (j = 0, len = ref.length; j < len; j++) {
-          spring = ref[j];
-          results.push(spring.setOpts(opts));
-        }
-        return results;
+        return this.list.push(spring);
       };
 
       Springs.prototype.update = function() {
@@ -292,7 +252,7 @@
       return Springs;
 
     })();
-  })(Physics, Physics.Behavior);
+  })(Physics.Behavior);
 
   (function(p) {
     var circlesCollide, rectanglesCollide, rectanglesCorrect, shorterCollisionVector;
@@ -346,7 +306,7 @@
         if (circlesCollide(left, right)) {
           combinedSize = left.radius + right.radius;
           overlap = combinedSize - left.distanceTo(right);
-          collisionVector = right.vectorTowards(left);
+          collisionVector = left.vectorTowards(right);
           collisionVector.scale(overlap);
           return collisionVector;
         } else {
@@ -377,53 +337,47 @@
     };
   })(Physics);
 
-  (function(p, i) {
+  (function(i) {
     return i.Euler = (function() {
-      function Euler(timeStep1, minVel) {
-        this.timeStep = timeStep1 != null ? timeStep1 : 1 / 60;
-        this.minVel = minVel != null ? minVel : 0.1;
+      function Euler(min) {
+        this.min = min != null ? min : 0.1;
       }
 
-      Euler.prototype.update = function(bodies, currentTime) {
-        var body, j, len;
-        for (j = 0, len = bodies.length; j < len; j++) {
-          body = bodies[j];
-          this.integrate(body, currentTime);
-        }
-        return this.resetAccels(bodies);
-      };
-
-      Euler.prototype.integrate = function(body, currentTime) {
-        if (body.dynamic()) {
-          body.velocity.vadd(body.acceleration.copy().scale(this.timeStep));
-          this.capMinimums(body);
-          return body.position.vadd(body.velocity);
-        } else {
-          return body.velocity.zero();
-        }
-      };
-
-      Euler.prototype.resetAccels = function(bodies) {
+      Euler.prototype.update = function(bodies, timeStep) {
         var body, j, len, results;
         results = [];
         for (j = 0, len = bodies.length; j < len; j++) {
           body = bodies[j];
-          results.push(body.acceleration.zero());
+          results.push(this.integrate(body, timeStep));
         }
         return results;
       };
 
+      Euler.prototype.integrate = function(body, timeStep) {
+        if (body.dynamic()) {
+          body.velocity.vadd(body.acceleration.copy().scale(timeStep));
+          this.capMinimums(body);
+          return body.position.vadd(body.velocity.copy().scale(timeStep));
+        } else {
+          body.velocity.scale(0);
+          return body.acceleration.scale(0);
+        }
+      };
+
       Euler.prototype.capMinimums = function(body) {
-        var ref;
-        if ((0 < (ref = body.velocity.magnitude()) && ref < this.minVel)) {
-          return body.velocity.scale(0);
+        var ref, ref1;
+        if ((0 < (ref = body.velocity.magnitude()) && ref < this.min)) {
+          body.velocity.scale(0);
+        }
+        if ((0 < (ref1 = body.acceleration.magnitude()) && ref1 < this.min)) {
+          return body.acceleration.scale(0);
         }
       };
 
       return Euler;
 
     })();
-  })(Physics, Physics.Integrator);
+  })(Physics.Integrator);
 
   (function(p) {
     return p.Circle = (function(superClass) {
@@ -495,48 +449,54 @@
 
   (function(p) {
     return p.pubsub = function(subject) {
-      var functions;
+      var me;
       if (subject == null) {
         subject = {};
       }
-      functions = {};
-      subject.on = function(topic, callback) {
-        if (!functions[topic]) {
-          functions[topic] = [];
-        }
-        functions[topic].push(callback);
-        return subject;
-      };
-      subject.emit = function(topic, args) {
-        var fn, j, len, ref;
-        if (!functions[topic]) {
-          return;
-        }
-        ref = functions[topic];
-        for (j = 0, len = ref.length; j < len; j++) {
-          fn = ref[j];
-          fn.apply(subject, args || []);
-        }
-        return subject;
-      };
-      subject.off = function(topic, func) {
-        var fn, j, len, ref;
-        if (!topic) {
-          functions = {};
-        } else if (!func) {
-          functions[topic] = [];
-        } else {
-          ref = functions[topic];
+      me = {
+        functions: {},
+        on: function(topic, callback) {
+          if (!me.functions[topic]) {
+            me.functions[topic] = [];
+          }
+          return me.functions[topic].push(callback);
+        },
+        emit: function(topic, args) {
+          var fn, j, len, ref, results;
+          if (!me.functions[topic]) {
+            return;
+          }
+          ref = me.functions[topic];
+          results = [];
           for (j = 0, len = ref.length; j < len; j++) {
             fn = ref[j];
-            if (fn === func) {
-              functions[topic].splice(i, 1);
+            results.push(fn.apply(me, args || []));
+          }
+          return results;
+        },
+        off: function(topic, func) {
+          var fn, j, len, ref, results;
+          if (!topic) {
+            return me.functions = {};
+          } else if (!func) {
+            return me.functions[topic] = [];
+          } else {
+            ref = me.functions[topic];
+            results = [];
+            for (j = 0, len = ref.length; j < len; j++) {
+              fn = ref[j];
+              if (fn === func) {
+                results.push(me.functions[topic].splice(i, 1));
+              }
             }
+            return results;
           }
         }
-        return subject;
       };
-      return subject;
+      subject.on = me.on;
+      subject.off = me.off;
+      subject.emit = me.emit;
+      return me;
     };
   })(Physics);
 
@@ -545,21 +505,33 @@
       function Spring(left1, right1, options) {
         this.left = left1;
         this.right = right1;
-        this.setOpts(options);
+        this.stiffness = options.stiffness, this.desiredLength = options.desiredLength, this.dampening = options.dampening;
       }
-
-      Spring.prototype.setOpts = function(options) {
-        return this.stiffness = options.stiffness, this.desiredLength = options.desiredLength, this.dampening = options.dampening, options;
-      };
 
       Spring.prototype.actualLength = function() {
         return Math.abs(this.left.distanceTo(this.right));
       };
 
+      Spring.prototype.resting = function() {
+        return this.actualLength() === this.desiredLength;
+      };
+
+      Spring.prototype.stress = function() {
+        return this.actualLength() - this.desiredLength;
+      };
+
+      Spring.prototype.attraction = function() {
+        return -this.stiffness * this.stress();
+      };
+
+      Spring.prototype.relativeVelocity = function() {
+        return this.left.velocity.copy().sub(this.right.velocity.copy());
+      };
+
       Spring.prototype.calc = function(left, right) {
         var actual, dx, dy, fx, fy, norm, vel;
         actual = this.actualLength();
-        norm = right.vectorTowards(left);
+        norm = left.vectorTowards(right);
         vel = left.velocity.copy().vsub(right.velocity);
         fx = -this.stiffness * (actual - this.desiredLength) * norm.x;
         dx = -this.dampening * vel.x;
@@ -581,151 +553,84 @@
   })(Physics);
 
   (function(p) {
-    return p.timePool = function(unit, opts) {
-      var aggregator, lastTime, max, me;
-      if (opts == null) {
-        opts = {};
-      }
-      aggregator = 0;
-      lastTime = null;
-      max = opts.max;
-      max || (max = 10);
-      return me = {
-        unitsLeft: function() {
-          return Math.floor(aggregator / unit);
-        },
-        reset: function(time) {
-          aggregator = 0;
-          return lastTime = time;
-        },
-        addCurrentTime: function(time) {
-          if (lastTime != null) {
-            aggregator += time - lastTime;
-            aggregator = Math.min(aggregator, max * unit);
-          }
-          return lastTime = time;
-        },
-        withdraw: function() {
-          if (me.unitsLeft()) {
-            aggregator -= unit;
-            return true;
-          } else {
-            return false;
-          }
-        }
-      };
-    };
-  })(Physics);
+    p.TimerError = (function(superClass) {
+      extend(TimerError, superClass);
 
-  (function(p) {
-    var perf;
-    p.timer = function() {
-      var count, iterations, me, running, startTime, sync, targetTime;
-      running = false;
-      count = 0;
-      iterations = null;
-      startTime = 0;
-      targetTime = null;
-      sync = false;
-      me = {
-        duration: function(ms) {
-          targetTime = ms;
-          return me;
-        },
-        times: function(val) {
-          iterations = val;
-          return me;
-        },
-        reset: function() {
-          iterations = null;
-          targetTime = null;
-          return me.off();
-        },
-        start: function() {
-          me.running = true;
-          startTime = p.timer.now();
-          count = 0;
-          me.emit('start');
-          me.ticker();
-          return me;
-        },
-        startSync: function(timeStep) {
-          var timePassed;
-          if (timeStep == null) {
-            timeStep = 16;
-          }
-          if ((iterations != null) || (targetTime != null)) {
-            me.running = true;
-            sync = true;
-            startTime = p.timer.now();
-            count = 0;
-            timePassed = startTime;
-            while (me.running) {
-              me.step(null, timePassed);
-              timePassed += timeStep;
-            }
-            sync = false;
-          }
-          return me;
-        },
-        stop: function() {
-          me.running = false;
-          me.emit('stop');
-          return me;
-        },
-        step: function(_, time) {
-          var delta;
-          if (time == null) {
-            time = p.timer.now();
-          }
-          me.emit('tick', [time, sync]);
-          if (iterations) {
-            count = count + 1;
-            if (count >= iterations) {
-              me.stop();
-            }
-          }
-          if (targetTime) {
-            delta = time - startTime;
-            if (delta >= targetTime) {
-              me.stop();
-            }
-          }
-          return me;
-        },
-        ticker: function(time) {
-          if (me.running) {
-            me.step(time);
-            window.requestAnimationFrame(me.ticker);
-          }
-          return me;
-        }
-      };
-      p.pubsub(me);
-      return me;
-    };
-    perf = window.performance;
-    return p.timer.now = function() {
-      if (perf && perf.now) {
-        return perf.now() + perf.timing.navigationStart;
-      } else {
-        return Date.now();
-      }
-    };
-  })(Physics);
-
-  (function(p) {
-    var VectorError;
-    VectorError = (function(superClass) {
-      extend(VectorError, superClass);
-
-      function VectorError() {
-        return VectorError.__super__.constructor.apply(this, arguments);
+      function TimerError() {
+        return TimerError.__super__.constructor.apply(this, arguments);
       }
 
-      return VectorError;
+      return TimerError;
 
     })(Error);
+    return p.Timer = (function() {
+      function Timer(delay1) {
+        this.delay = delay1;
+        p.pubsub(this);
+      }
+
+      Timer.prototype.run = function(fn, options) {
+        var iterations;
+        if (options == null) {
+          options = {};
+        }
+        iterations = options.iterations;
+        this.running = true;
+        this.emit('start');
+        if (this.delay) {
+          return this.runWithDelay(fn, iterations);
+        } else {
+          return this.runWithoutDelay(fn, iterations);
+        }
+      };
+
+      Timer.prototype.stop = function() {
+        return this.running = false;
+      };
+
+      Timer.prototype.runWithDelay = function(fn, iterations, count) {
+        if (count == null) {
+          count = 0;
+        }
+        return window.setTimeout((function(_this) {
+          return function() {
+            if (!_this.running) {
+              return;
+            }
+            fn();
+            if (iterations) {
+              count = count + 1;
+              if (count < iterations) {
+                return _this.runWithDelay(fn, iterations, count);
+              } else {
+                return _this.emit('stop');
+              }
+            } else {
+              return _this.runWithDelay(fn);
+            }
+          };
+        })(this), this.delay);
+      };
+
+      Timer.prototype.runWithoutDelay = function(fn, iterations) {
+        var count;
+        if (!iterations) {
+          throw p.TimerError;
+        }
+        count = 0;
+        while (count < iterations) {
+          fn();
+          count = count + 1;
+        }
+        return this.emit('stop');
+      };
+
+      return Timer;
+
+    })();
+  })(Physics);
+
+  (function(p) {
     return p.Vector = (function() {
       function Vector(x1, y1) {
         this.x = x1;
@@ -741,12 +646,6 @@
       Vector.prototype.vsub = function(other) {
         this.x -= other.x;
         this.y -= other.y;
-        return this;
-      };
-
-      Vector.prototype.vscale = function(other) {
-        this.x *= other.x;
-        this.y *= other.y;
         return this;
       };
 
@@ -796,10 +695,6 @@
 
       Vector.prototype.copy = function() {
         return new p.Vector(this.x, this.y);
-      };
-
-      Vector.prototype.zero = function() {
-        return this.scale(0);
       };
 
       return Vector;
@@ -866,7 +761,7 @@
         this.width = options.width, this.height = options.height, this.animationDelay = options.animationDelay, this.friction = options.friction, this.cap = options.cap, this.firmCollisions = options.firmCollisions, this.fps = options.fps, this.behaviors = options.behaviors, this.integrator = options.integrator;
         this.fps || (this.fps = 60);
         this.behaviors || (this.behaviors = []);
-        this.integrator || (this.integrator = new p.Integrator.Euler(1 / this.fps));
+        this.integrator || (this.integrator = new p.Integrator.Euler);
         return this.boundingBox = new p.Rectangle(0, 0, this.width, this.height);
       };
 
@@ -881,15 +776,53 @@
         return results;
       };
 
-      World.prototype.step = function() {
-        var behavior, j, len, ref;
-        this.integrator.update(this.bodies);
+      World.prototype.updateLoop = function() {
+        var behavior, j, len, ref, timeStep;
+        timeStep = this.fps / 1000;
         ref = this.behaviors;
         for (j = 0, len = ref.length; j < len; j++) {
           behavior = ref[j];
           behavior.update(this.bodies, this);
         }
+        this.integrator.update(this.bodies, timeStep);
         return this.emit('step');
+      };
+
+      World.prototype.setFps = function(val) {
+        this._delay = null;
+        return this.fps = val;
+      };
+
+      World.prototype.delay = function() {
+        return this._delay != null ? this._delay : this._delay = 1000 / this.fps;
+      };
+
+      World.prototype.start = function(iterations, delay) {
+        if (!this.timer) {
+          this.timer = new p.Timer(delay || this.delay());
+          this.timer.on('start', (function(_this) {
+            return function() {
+              return _this.emit('start');
+            };
+          })(this));
+          this.timer.on('stop', (function(_this) {
+            return function() {
+              return _this.emit('stop');
+            };
+          })(this));
+          return this.timer.run((function(_this) {
+            return function() {
+              return _this.updateLoop();
+            };
+          })(this), {
+            iterations: iterations
+          });
+        }
+      };
+
+      World.prototype.stop = function() {
+        this.timer.stop();
+        return this.timer = null;
       };
 
       return World;

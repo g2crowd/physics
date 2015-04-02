@@ -1,36 +1,16 @@
 do (p = Physics) ->
-  class p.Circle
-    constructor: (x, y, @radius) ->
-      @particle = new p.Particle x, y
+  class p.Circle extends p.Particle
+    constructor: (x, y, @radius, opts) ->
+      super x, y, opts
 
-    position: ->
-      @particle.position
+    leftEdge: ->
+      @position.x - @radius
 
-    acceleration: ->
-      new p.Vector(0, 0) if @frozen
-      @particle.acceleration
+    rightEdge: ->
+      @position.x + @radius
 
-    velocity: ->
-      new p.Vector(0, 0) if @frozen
-      @particle.velocity
+    topEdge: ->
+      @position.y - @radius
 
-    applyForce: (vector) ->
-      @acceleration().add(vector)
-
-    frozen: false
-
-    collidesWith: (circle) ->
-
-    move: (args...) ->
-      return if @frozen
-      @particle.move(args...)
-
-    distanceTo: (other) ->
-      left = @position()
-      right = other.position()
-
-      Math.sqrt (left.x - right.x) * (left.x - right.x) + (left.y - right.y) * (left.y - right.y)
-
-    vectorTowards: (other) ->
-      new p.Vector(@position().x - other.position().x,
-                   @position().y - other.position().y).normalized()
+    bottomEdge: ->
+      @position.y + @radius

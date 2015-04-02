@@ -17,6 +17,7 @@ module.exports = (grunt) ->
         },
         files: {
           'build/physics.js': ['src/namespace.coffee',
+                               'src/particles/particle.coffee',
                                'src/**/*.coffee'],
           'example/script.js': ['example/*.coffee'],
           'test/tests.js': ['test/*.coffee'],

@@ -1,22 +1,56 @@
-radius = 25
+do (p = Physics, b = Physics.Behavior) ->
+  radius = 25
 
-$signs = $('.sign')
-$world = $('.world')
-signs = []
-views = []
+  $signs = $('.circle, .square')
+  $world = $('.world')
+  signs = []
+  views = []
 
-$signs.each ->
-  $sign = $(this)
-  particle = new Physics.Circle($sign.data().x, $sign.data().y, radius)
-  signs.push particle
-  views.push new Physics.View(particle, $sign)
+  $signs.each (idx) ->
+    $sign = $(this)
 
-signs[0].frozen = true
-springs = for sign in signs when sign != signs[0]
-  new Physics.Spring(sign, signs[0], stiffness: 1, desiredLength: 50, dampening: 0.5)
+    particle = if $sign.hasClass('circle')
+      new p.Circle(
+        $sign.data().x, $sign.data().y,
+        $sign.data().radius || radius,
+        $sign.data())
 
-world = new Physics.World(signs, springs, width: 800, height: 800, friction: 0.5)
-worldView = new Physics.WorldView world, views, $world
+    else
+      new p.Rectangle(
+        $sign.data().x, $sign.data().y,
+        $sign.data().width  || radius * 2,
+        $sign.data().height || radius * 2,
+        $sign.data())
 
-worldView.start()
-world.start(16)
+    $sign.html(idx)
+    signs.push particle
+    views.push new p.View(particle, $sign)
+
+  window.springs = for data in $world.data().springs
+    new p.Spring(signs[data[0]], signs[data[1]],
+      stiffness: 2, desiredLength: data[2], dampening: 5)
+
+  springBehavior = new b.Springs springs
+
+  window.world = new p.World(signs, width: 1000, height: 500)
+  world.addBehavior(
+    springBehavior,
+    new b.ParticleCollisions(firm: true, restitution: 0.5),
+    new b.ConstantFriction(0.1),
+    new b.EdgeCollisions(0.2),
+    )
+
+  worldView = new p.WorldView world, views, $world
+
+  worldView.on 'render', ->
+    #$world.find('.line').remove()
+  springs.forEach (spring) ->
+    #worldView.on 'render', ->
+      #if spring.left.distanceTo(spring.right) < 1000
+        #$world.line(spring.left.position.x, spring.left.position.y, spring.right.position.x, spring.right.position.y)
+
+
+  window.timer = p.timer().on('tick', (t) -> world.step(t))
+  timer.on 'tick', (time, sync) -> worldView.render() unless sync
+  timer.on 'stop', () -> worldView.render()
+  timer.start()

@@ -1,15 +1,22 @@
 do (p = Physics) ->
+  class VectorError extends Error
   class p.Vector
     constructor: (@x, @y) ->
 
-    add: (other) ->
+    vadd: (other) ->
       @x += other.x
       @y += other.y
+
       this
 
-    sub: (other) ->
+    vsub: (other) ->
       @x -= other.x
       @y -= other.y
+      this
+
+    vscale: (other) ->
+      @x *= other.x
+      @y *= other.y
       this
 
     div: (value) ->
@@ -24,16 +31,7 @@ do (p = Physics) ->
       @y *= value
       this
 
-    magnitude: ->
-      Math.sqrt @x * @x + @y * @y
-
-    angle: ->
-      Math.atan2 @y, @x
-
-    fromAngle: (angle, magnitude) ->
-      new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle))
-
-    normalized: ->
+    normalize: ->
       if mag = @magnitude()
         num = 1.0 / mag
         this.x *= num
@@ -41,7 +39,21 @@ do (p = Physics) ->
 
       this
 
+    dot: (other) ->
+      @x * other.x + @y * other.y
+
+    fromAngle: (angle, magnitude) ->
+      new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle))
+
+    magnitude: ->
+      Math.sqrt @x * @x + @y * @y
+
+    angle: ->
+      Math.atan2 @y, @x
+
     toArray: -> [@x, @y]
 
     copy: ->
       new p.Vector(@x, @y)
+
+    zero: -> @scale 0

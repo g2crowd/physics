@@ -1,42 +1,72 @@
 do (p = Physics) ->
   circlesCollide = (left, right) ->
     combinedSize = left.radius + right.radius
-    dx = left.position().x - right.position().x
-    dy = left.position().y - right.position().y
+    dx = left.position.x - right.position.x
+    dy = left.position.y - right.position.y
 
     dx * dx + dy * dy < combinedSize * combinedSize
 
+  rectanglesCollide = (left, right) ->
+    left.leftEdge() < right.rightEdge() && left.rightEdge() > right.leftEdge() &&
+    left.topEdge() < right.bottomEdge() && left.bottomEdge() > right.topEdge()
+
+  shorterCollisionVector = (a, b) ->
+    intersection = a.intersectWith b
+
+    if intersection.x < intersection.y
+      new p.Vector intersection.x, 0
+    else
+      new p.Vector 0, intersection.y
+
+  rectanglesCorrect = (a, b) ->
+    vector = shorterCollisionVector(a, b)
+    # above
+    if a.topEdge() < b.topEdge()
+      vector.y *= -1
+
+    # to left
+    if a.leftEdge() < b.leftEdge()
+      vector.x *= -1
+
+    vector
+
   p.collisions =
+    collide: (left, right) ->
+      fnName =
+        if left.constructor.name == 'Rectangle' || right.constructor.name == 'Rectangle'
+          'rectangles'
+        else
+          'circles'
+      @[fnName](left, right)
+
+    rectangles: (left, right) ->
+      xCorrection = yCorrection = 0
+
+      if rectanglesCollide left, right
+        rectanglesCorrect(left, right)
+      else
+        false
+
     circles: (left, right) ->
       if circlesCollide left, right
         combinedSize = left.radius + right.radius
         overlap = combinedSize - left.distanceTo(right)
 
-        collisionVector = left.vectorTowards(right)
+        collisionVector = right.vectorTowards(left)
+
         collisionVector.scale overlap
         collisionVector
       else
         false
 
-    circleOutOfBounds: (circle, bounds) ->
-      # for the love of...
-      edgeLeft   = circle.position().x - circle.radius
-      edgeRight  = circle.position().x + circle.radius
-      edgeTop    = circle.position().y - circle.radius
-      edgeBottom = circle.position().y + circle.radius
-
-      rectLeft   = bounds.position().x
-      rectRight  = bounds.position().x + bounds.width
-      rectTop    = bounds.position().y
-      rectBottom = bounds.position().y + bounds.height
-
+    outOfBounds: (item, bounds) ->
       xCorrection = yCorrection = 0
 
-      xCorrection = rectLeft - edgeLeft if edgeLeft < rectLeft
-      xCorrection = rectRight - edgeRight if edgeRight > rectRight
+      xCorrection = bounds.leftEdge() - item.leftEdge() if item.leftEdge() < bounds.leftEdge()
+      xCorrection = bounds.rightEdge() - item.rightEdge() if item.rightEdge() > bounds.rightEdge()
 
-      yCorrection = rectTop - edgeTop if edgeTop < rectTop
-      yCorrection = rectBottom - edgeBottom if edgeBottom > rectBottom
+      yCorrection = bounds.topEdge() - item.topEdge() if item.topEdge() < bounds.topEdge()
+      yCorrection = bounds.bottomEdge() - item.bottomEdge() if item.bottomEdge() > bounds.bottomEdge()
 
       if xCorrection || yCorrection
         new p.Vector(xCorrection, yCorrection)

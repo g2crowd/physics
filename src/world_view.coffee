@@ -3,9 +3,14 @@ do (p = Physics) ->
 
   class p.WorldView
     constructor: (@world, @particleViews, @$el) ->
+      p.pubsub this
+      @world.on 'stop', =>
+        @stop()
+        @render()
 
     render: ->
       view.render() for view in @particleViews
+      @emit 'render'
 
     _loop: ->
       animFn =>

@@ -1,39 +1,29 @@
 do (p = Physics) ->
   class p.Spring
     constructor: (@left, @right, options) ->
+      @setOpts(options)
+
+    setOpts: (options) ->
       {@stiffness, @desiredLength, @dampening} = options
 
     actualLength: ->
       Math.abs @left.distanceTo(@right)
 
-    resting: ->
-      @actualLength() == @desiredLength
-
-    stress: ->
-      @actualLength() - @desiredLength
-
-    attraction: ->
-      -@stiffness * @stress()
-
-    relativeVelocity: ->
-      @left.velocity().copy().sub @right.velocity().copy()
-
-    # based on
-    # http://ghoscher.me/2013/03/02/simple-spring-physics/
-    calcForce: (left, right) ->
+    calc: (left, right) ->
       actual = @actualLength()
-      norm = left.vectorTowards(right)
-      vel = left.velocity().copy().sub right.velocity()
+      norm = right.vectorTowards(left)
+      vel = left.velocity.copy().vsub right.velocity
 
-      fx = -@stiffness * (actual - @desiredLength) * (norm.x / actual) - @dampening * vel.x
-      fy = -@stiffness * (actual - @desiredLength) * (norm.y / actual) - @dampening * vel.y
+      fx = -@stiffness * (actual - @desiredLength) * (norm.x)
+      dx = -@dampening * vel.x
 
-      new p.Vector(fx, fy)
+      fy = -@stiffness * (actual - @desiredLength) * (norm.y)
+      dy = -@dampening * vel.y
+
+      new p.Vector(fx + dx, fy + dy)
 
     update: () ->
-      leftForce = @calcForce(@left, @right)
-      rightForce = @calcForce(@right, @left)
+      leftForce = @calc(@left, @right)
 
-      # inverses?
       @left.applyForce leftForce
       @right.applyForce leftForce.scale(-1)
