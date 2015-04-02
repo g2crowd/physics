@@ -17,3 +17,6 @@ do (p = Physics) ->
 
     area: ->
       @width * @height
+
+    center: ->
+      new p.Vector(@position.x + @width / 2, @position.y + @height / 2)

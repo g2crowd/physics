@@ -45,6 +45,12 @@ do (p = Physics) ->
     fromAngle: (angle, magnitude) ->
       new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle))
 
+    distanceTo: (other) ->
+      Math.sqrt (@x - other.x) * (@x - other.x) + (@y - other.y) * (@y - other.y)
+
+    vectorTowards: (other) ->
+      new p.Vector(other.x - @x, other.y - @y).normalize()
+
     magnitude: ->
       Math.sqrt @x * @x + @y * @y
 

@@ -30,12 +30,19 @@ do (p = Physics, b = Physics.Behavior) ->
     new p.Spring(signs[data[0]], signs[data[1]],
       stiffness: 2, desiredLength: data[2], dampening: 5)
 
+  window.repellers = signs
+  #for data in $world.data().repellers
+    #$($signs[data]).addClass('emp')
+    #signs[data]
+
   springBehavior = new b.Springs springs
+  repelBehavior = new b.Repellers repellers, strength: 50, distance: 100
 
   window.world = new p.World(signs, width: 1000, height: 500)
   world.addBehavior(
     springBehavior,
-    new b.ParticleCollisions(firm: true, restitution: 0.5),
+    new b.ParticleCollisions(),
+    repelBehavior,
     new b.ConstantFriction(0.1),
     new b.EdgeCollisions(0.2),
     )

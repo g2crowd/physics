@@ -1,6 +1,6 @@
 (function() {
   (function(p, b) {
-    var $signs, $world, data, radius, signs, springBehavior, views, worldView;
+    var $signs, $world, data, radius, repelBehavior, signs, springBehavior, views, worldView;
     radius = 25;
     $signs = $('.circle, .square');
     $world = $('.world');
@@ -28,15 +28,17 @@
       }
       return results;
     })();
+    window.repellers = signs;
     springBehavior = new b.Springs(springs);
+    repelBehavior = new b.Repellers(repellers, {
+      strength: 50,
+      distance: 100
+    });
     window.world = new p.World(signs, {
       width: 1000,
       height: 500
     });
-    world.addBehavior(springBehavior, new b.ParticleCollisions({
-      firm: true,
-      restitution: 0.5
-    }), new b.ConstantFriction(0.1), new b.EdgeCollisions(0.2));
+    world.addBehavior(springBehavior, new b.ParticleCollisions(), repelBehavior, new b.ConstantFriction(0.1), new b.EdgeCollisions(0.2));
     worldView = new p.WorldView(world, views, $world);
     worldView.on('render', function() {});
     springs.forEach(function(spring) {});

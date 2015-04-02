@@ -28,15 +28,13 @@ do (p = Physics) ->
 
       @position.vadd vector
 
-    distanceTo: (other) ->
-      left = @position
-      right = other.position
+    center: -> @position
 
-      Math.sqrt (left.x - right.x) * (left.x - right.x) + (left.y - right.y) * (left.y - right.y)
+    distanceTo: (other) ->
+      @position.distanceTo other.position
 
     vectorTowards: (other) ->
-      new p.Vector(other.position.x - @position.x,
-                   other.position.y - @position.y).normalize()
+      @position.vectorTowards other.position
 
     occupiesSameSpaceAs: (other) ->
       @position.x == other.position.x && @position.y == other.position.y

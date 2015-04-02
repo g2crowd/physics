@@ -55,15 +55,16 @@
         return this.position.vadd(vector);
       };
 
+      Particle.prototype.center = function() {
+        return this.position;
+      };
+
       Particle.prototype.distanceTo = function(other) {
-        var left, right;
-        left = this.position;
-        right = other.position;
-        return Math.sqrt((left.x - right.x) * (left.x - right.x) + (left.y - right.y) * (left.y - right.y));
+        return this.position.distanceTo(other.position);
       };
 
       Particle.prototype.vectorTowards = function(other) {
-        return new p.Vector(other.position.x - this.position.x, other.position.y - this.position.y).normalize();
+        return this.position.vectorTowards(other.position);
       };
 
       Particle.prototype.occupiesSameSpaceAs = function(other) {
@@ -173,8 +174,6 @@
         if (opts == null) {
           opts = {};
         }
-        this.firm = opts.firm, this.restitution = opts.restitution;
-        this.restitution || (this.restitution = 10);
       }
 
       ParticleCollisions.prototype.update = function(bodies) {
@@ -209,26 +208,12 @@
       };
 
       ParticleCollisions.prototype.handleCollision = function(body, collisionVector, other) {
-        if (this.firm) {
-          return this.bounceOff(body, other, collisionVector);
-        } else {
-          return body.applyForce(collisionVector.scale(this.restitution));
-        }
+        return this.correct(body, other, collisionVector);
       };
 
-      ParticleCollisions.prototype.bounceOff = function(a, b, collisionVector) {
+      ParticleCollisions.prototype.correct = function(a, b, collisionVector) {
         a.translate(collisionVector.scale(0.5));
-        a.applyForce(collisionVector);
-        b.translate(collisionVector.scale(-1));
-        b.applyForce(collisionVector);
-        if (collisionVector.x !== 0) {
-          a.velocity.x *= -this.restitution;
-          b.velocity.x *= -this.restitution;
-        }
-        if (collisionVector.y !== 0) {
-          a.velocity.y *= -this.restitution;
-          return b.velocity.y *= -this.restitution;
-        }
+        return b.translate(collisionVector.scale(-1));
       };
 
       ParticleCollisions.prototype.correctPerfectOverlays = function(a, b) {
@@ -236,12 +221,71 @@
         if (a.occupiesSameSpaceAs(b)) {
           angle = Math.random() * 2 * Math.PI;
           force = new p.Vector(Math.cos(angle), Math.sin(angle)).scale(a.rightEdge() - a.leftEdge());
-          console.log(force);
           return a.applyForce(force);
         }
       };
 
       return ParticleCollisions;
+
+    })();
+  })(Physics, Physics.Behavior);
+
+  (function(p, b) {
+    return b.Repellers = (function() {
+      function Repellers(particles, opts) {
+        this.particles = particles;
+        if (opts == null) {
+          opts = {};
+        }
+        this.strength = opts.strength, this.distance = opts.distance;
+      }
+
+      Repellers.prototype.add = function(body) {
+        this.particles.push(body);
+        return body;
+      };
+
+      Repellers.prototype.update = function(bodies) {
+        var j, len, ref, repeller, results;
+        ref = this.particles;
+        results = [];
+        for (j = 0, len = ref.length; j < len; j++) {
+          repeller = ref[j];
+          results.push(this.repelClose(repeller, bodies));
+        }
+        return results;
+      };
+
+      Repellers.prototype.repelClose = function(repeller, bodies) {
+        var center, j, len, other, otherCenter, range, results;
+        center = repeller.center();
+        results = [];
+        for (j = 0, len = bodies.length; j < len; j++) {
+          other = bodies[j];
+          if (!(other !== repeller && !other.ethereal)) {
+            continue;
+          }
+          this.correctPerfectOverlays(repeller, other);
+          otherCenter = other.center();
+          if ((range = center.distanceTo(otherCenter)) <= this.distance) {
+            results.push(other.applyForce(center.vectorTowards(otherCenter).scale(this.strength)));
+          } else {
+            results.push(void 0);
+          }
+        }
+        return results;
+      };
+
+      Repellers.prototype.correctPerfectOverlays = function(a, b) {
+        var angle, force;
+        if (a.center().x === b.center().x && a.center().y === b.center().y) {
+          angle = Math.random() * 2 * Math.PI;
+          force = new p.Vector(Math.cos(angle), Math.sin(angle)).scale(a.rightEdge() - a.leftEdge());
+          return a.applyForce(force);
+        }
+      };
+
+      return Repellers;
 
     })();
   })(Physics, Physics.Behavior);
@@ -486,6 +530,10 @@
 
       Rectangle.prototype.area = function() {
         return this.width * this.height;
+      };
+
+      Rectangle.prototype.center = function() {
+        return new p.Vector(this.position.x + this.width / 2, this.position.y + this.height / 2);
       };
 
       return Rectangle;
@@ -780,6 +828,14 @@
 
       Vector.prototype.fromAngle = function(angle, magnitude) {
         return new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle));
+      };
+
+      Vector.prototype.distanceTo = function(other) {
+        return Math.sqrt((this.x - other.x) * (this.x - other.x) + (this.y - other.y) * (this.y - other.y));
+      };
+
+      Vector.prototype.vectorTowards = function(other) {
+        return new p.Vector(other.x - this.x, other.y - this.y).normalize();
       };
 
       Vector.prototype.magnitude = function() {
