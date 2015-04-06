@@ -68,8 +68,10 @@ do (p = Physics) ->
       ticker: (time) ->
         if me.running
           me.step(time)
-          window.requestAnimationFrame me.ticker
+          me.timerFn me.ticker
         me
+
+      timerFn: (fn) -> window.requestAnimationFrame(fn)
 
     p.pubsub me
 
@@ -80,4 +82,4 @@ do (p = Physics) ->
     if perf && perf.now
       perf.now() + perf.timing.navigationStart
     else
-      Date.now()
+      (new Date()).getTime()

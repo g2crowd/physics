@@ -36,15 +36,16 @@ do (p = Physics, b = Physics.Behavior) ->
     #signs[data]
 
   springBehavior = new b.Springs springs
-  repelBehavior = new b.Repellers repellers, strength: 50, distance: 100
+  repelBehavior = new b.Repellers repellers, strength: 10, distance: 1.1
 
   window.world = new p.World(signs, width: 1000, height: 500)
   world.addBehavior(
+    new b.NudgeOverlaidBodies(),
     springBehavior,
     new b.ParticleCollisions(),
     repelBehavior,
     new b.ConstantFriction(0.1),
-    new b.EdgeCollisions(0.2),
+    new b.EdgeCollisions(0.2)
     )
 
   worldView = new p.WorldView world, views, $world

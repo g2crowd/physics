@@ -169,6 +169,51 @@
   })(Physics, Physics.Behavior);
 
   (function(p, b) {
+    return b.NudgeOverlaidBodies = (function() {
+      function NudgeOverlaidBodies(force1) {
+        this.force = force1 != null ? force1 : 1;
+        this.nudgeCounter = -1;
+      }
+
+      NudgeOverlaidBodies.prototype.update = function(bodies) {
+        var a, j, len, results;
+        results = [];
+        for (j = 0, len = bodies.length; j < len; j++) {
+          a = bodies[j];
+          results.push((function() {
+            var k, len1, results1;
+            results1 = [];
+            for (k = 0, len1 = bodies.length; k < len1; k++) {
+              b = bodies[k];
+              if (a !== b && !b.ethereal && !a.ethereal) {
+                results1.push(this.nudge(a, b));
+              }
+            }
+            return results1;
+          }).call(this));
+        }
+        return results;
+      };
+
+      NudgeOverlaidBodies.prototype.nudge = function(a, b) {
+        var angle, force;
+        if (a.occupiesSameSpaceAs(b)) {
+          this.nudgeCounter += 0.1;
+          if (this.nudgeCounter > 1) {
+            this.nudgeCounter = -1;
+          }
+          angle = this.nudgeCounter * Math.PI;
+          force = new p.Vector(Math.cos(angle), Math.sin(angle)).scale(a.rightEdge() - a.leftEdge());
+          return a.translate(force);
+        }
+      };
+
+      return NudgeOverlaidBodies;
+
+    })();
+  })(Physics, Physics.Behavior);
+
+  (function(p, b) {
     return b.ParticleCollisions = (function() {
       function ParticleCollisions(opts) {
         if (opts == null) {
@@ -194,34 +239,21 @@
         results = [];
         for (j = 0, len = bodies.length; j < len; j++) {
           other = bodies[j];
-          if (!(body !== other && !other.ethereal)) {
-            continue;
-          }
-          this.correctPerfectOverlays(body, other);
-          if (collisionVector = p.collisions.collide(body, other)) {
-            results.push(this.handleCollision(body, collisionVector, other));
-          } else {
-            results.push(void 0);
+          if (body !== other && !other.ethereal) {
+            if (collisionVector = p.collisions.collide(body, other)) {
+              results.push(this.correct(body, other, collisionVector));
+            } else {
+              results.push(void 0);
+            }
           }
         }
         return results;
       };
 
-      ParticleCollisions.prototype.handleCollision = function(body, collisionVector, other) {
-        return this.correct(body, other, collisionVector);
-      };
-
       ParticleCollisions.prototype.correct = function(a, b, collisionVector) {
-        a.translate(collisionVector.scale(0.5));
-        return b.translate(collisionVector.scale(-1));
-      };
-
-      ParticleCollisions.prototype.correctPerfectOverlays = function(a, b) {
-        var angle, force;
-        if (a.occupiesSameSpaceAs(b)) {
-          angle = Math.random() * 2 * Math.PI;
-          force = new p.Vector(Math.cos(angle), Math.sin(angle)).scale(a.rightEdge() - a.leftEdge());
-          return a.applyForce(force);
+        if (this.firm) {
+          a.translate(collisionVector.scale(0.5));
+          return b.translate(collisionVector.scale(-1));
         }
       };
 
@@ -237,12 +269,18 @@
         if (opts == null) {
           opts = {};
         }
-        this.strength = opts.strength, this.distance = opts.distance;
+        this.setOpts(opts);
       }
 
       Repellers.prototype.add = function(body) {
         this.particles.push(body);
         return body;
+      };
+
+      Repellers.prototype.setOpts = function(opts) {
+        this.strength = opts.strength, this.distance = opts.distance;
+        this.distance || (this.distance = 1);
+        return this.strength || (this.strength = 0);
       };
 
       Repellers.prototype.update = function(bodies) {
@@ -257,32 +295,23 @@
       };
 
       Repellers.prototype.repelClose = function(repeller, bodies) {
-        var center, j, len, other, otherCenter, range, results;
+        var center, diameters, j, len, other, otherCenter, range, results;
         center = repeller.center();
+        diameters = this.distance * repeller.width;
         results = [];
         for (j = 0, len = bodies.length; j < len; j++) {
           other = bodies[j];
           if (!(other !== repeller && !other.ethereal)) {
             continue;
           }
-          this.correctPerfectOverlays(repeller, other);
           otherCenter = other.center();
-          if ((range = center.distanceTo(otherCenter)) <= this.distance) {
-            results.push(other.applyForce(center.vectorTowards(otherCenter).scale(this.strength)));
+          if ((range = center.distanceTo(otherCenter)) <= diameters) {
+            results.push(other.applyForce(center.vectorTowards(otherCenter).scale(this.strength * (diameters - range))));
           } else {
             results.push(void 0);
           }
         }
         return results;
-      };
-
-      Repellers.prototype.correctPerfectOverlays = function(a, b) {
-        var angle, force;
-        if (a.center().x === b.center().x && a.center().y === b.center().y) {
-          angle = Math.random() * 2 * Math.PI;
-          force = new p.Vector(Math.cos(angle), Math.sin(angle)).scale(a.rightEdge() - a.leftEdge());
-          return a.applyForce(force);
-        }
       };
 
       return Repellers;
@@ -475,6 +504,7 @@
 
       function Circle(x, y, radius, opts) {
         this.radius = radius;
+        this.width = this.height = this.radius * 2;
         Circle.__super__.constructor.call(this, x, y, opts);
       }
 
@@ -597,7 +627,8 @@
       }
 
       Spring.prototype.setOpts = function(options) {
-        return this.stiffness = options.stiffness, this.desiredLength = options.desiredLength, this.dampening = options.dampening, options;
+        this.stiffness = options.stiffness, this.desiredLength = options.desiredLength, this.dampening = options.dampening, this.defaultDegrees = options.defaultDegrees;
+        return this.angleVector = p.Vector.fromDegrees(this.defaultDegrees || 45, 1);
       };
 
       Spring.prototype.actualLength = function() {
@@ -608,6 +639,9 @@
         var actual, dx, dy, fx, fy, norm, vel;
         actual = this.actualLength();
         norm = right.vectorTowards(left);
+        if (norm.isZero()) {
+          norm = this.angleVector;
+        }
         vel = left.velocity.copy().vsub(right.velocity);
         fx = -this.stiffness * (actual - this.desiredLength) * norm.x;
         dx = -this.dampening * vel.x;
@@ -744,9 +778,12 @@
         ticker: function(time) {
           if (me.running) {
             me.step(time);
-            window.requestAnimationFrame(me.ticker);
+            me.timerFn(me.ticker);
           }
           return me;
+        },
+        timerFn: function(fn) {
+          return window.requestAnimationFrame(fn);
         }
       };
       p.pubsub(me);
@@ -757,13 +794,14 @@
       if (perf && perf.now) {
         return perf.now() + perf.timing.navigationStart;
       } else {
-        return Date.now();
+        return (new Date()).getTime();
       }
     };
   })(Physics);
 
   (function(p) {
-    var VectorError;
+    var DEGREES_TO_RAD, VectorError;
+    DEGREES_TO_RAD = Math.PI / 180;
     VectorError = (function(superClass) {
       extend(VectorError, superClass);
 
@@ -779,6 +817,18 @@
         this.x = x1;
         this.y = y1;
       }
+
+      Vector.prototype.add = function(value) {
+        this.x += value;
+        this.y += value;
+        return this;
+      };
+
+      Vector.prototype.sub = function(value) {
+        this.x -= value;
+        this.y -= value;
+        return this;
+      };
 
       Vector.prototype.vadd = function(other) {
         this.x += other.x;
@@ -826,10 +876,6 @@
         return this.x * other.x + this.y * other.y;
       };
 
-      Vector.prototype.fromAngle = function(angle, magnitude) {
-        return new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle));
-      };
-
       Vector.prototype.distanceTo = function(other) {
         return Math.sqrt((this.x - other.x) * (this.x - other.x) + (this.y - other.y) * (this.y - other.y));
       };
@@ -856,6 +902,18 @@
 
       Vector.prototype.zero = function() {
         return this.scale(0);
+      };
+
+      Vector.prototype.isZero = function() {
+        return (this.x === 0 && 0 === this.y);
+      };
+
+      Vector.fromRadians = function(radians, magnitude) {
+        return new p.Vector(Math.cos(radians), Math.sin(radians)).scale(magnitude);
+      };
+
+      Vector.fromDegrees = function(degrees, magnitude) {
+        return this.fromRadians(degrees * DEGREES_TO_RAD, magnitude);
       };
 
       return Vector;
@@ -954,22 +1012,12 @@
   })(Physics);
 
   (function(p) {
-    var animFn;
-    animFn = window.requestAnimationFrame || function(fn) {
-      return window.setTimeout(fn, 16);
-    };
     return p.WorldView = (function() {
       function WorldView(world1, particleViews, $el) {
         this.world = world1;
         this.particleViews = particleViews;
         this.$el = $el;
         p.pubsub(this);
-        this.world.on('stop', (function(_this) {
-          return function() {
-            _this.stop();
-            return _this.render();
-          };
-        })(this));
       }
 
       WorldView.prototype.render = function() {
@@ -980,33 +1028,6 @@
           view.render();
         }
         return this.emit('render');
-      };
-
-      WorldView.prototype._loop = function() {
-        return animFn((function(_this) {
-          return function() {
-            if (_this.running) {
-              _this.render();
-              return _this._loop();
-            }
-          };
-        })(this));
-      };
-
-      WorldView.prototype.start = function() {
-        if (this.running) {
-          return;
-        }
-        this.running = true;
-        return this._loop();
-      };
-
-      WorldView.prototype.stop = function() {
-        return this.running = false;
-      };
-
-      WorldView.prototype.fpsToMs = function(fps) {
-        return 1000 / fps;
       };
 
       return WorldView;

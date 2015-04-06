@@ -1,7 +1,21 @@
 do (p = Physics) ->
+  DEGREES_TO_RAD = Math.PI / 180
+
   class VectorError extends Error
   class p.Vector
     constructor: (@x, @y) ->
+
+    add: (value) ->
+      @x += value
+      @y += value
+
+      this
+
+    sub: (value) ->
+      @x -= value
+      @y -= value
+
+      this
 
     vadd: (other) ->
       @x += other.x
@@ -42,9 +56,6 @@ do (p = Physics) ->
     dot: (other) ->
       @x * other.x + @y * other.y
 
-    fromAngle: (angle, magnitude) ->
-      new p.Vector(magnitude * Math.cos(angle), magnitude * Math.sin(angle))
-
     distanceTo: (other) ->
       Math.sqrt (@x - other.x) * (@x - other.x) + (@y - other.y) * (@y - other.y)
 
@@ -63,3 +74,12 @@ do (p = Physics) ->
       new p.Vector(@x, @y)
 
     zero: -> @scale 0
+
+    isZero: ->
+      @x == 0 == @y
+
+    @fromRadians: (radians, magnitude) ->
+      new p.Vector(Math.cos(radians), Math.sin(radians)).scale(magnitude)
+
+    @fromDegrees: (degrees, magnitude) ->
+      @fromRadians(degrees * DEGREES_TO_RAD, magnitude)

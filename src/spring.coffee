@@ -4,7 +4,8 @@ do (p = Physics) ->
       @setOpts(options)
 
     setOpts: (options) ->
-      {@stiffness, @desiredLength, @dampening} = options
+      {@stiffness, @desiredLength, @dampening, @defaultDegrees} = options
+      @angleVector = p.Vector.fromDegrees (@defaultDegrees || 45), 1
 
     actualLength: ->
       Math.abs @left.distanceTo(@right)
@@ -12,6 +13,7 @@ do (p = Physics) ->
     calc: (left, right) ->
       actual = @actualLength()
       norm = right.vectorTowards(left)
+      norm = @angleVector if norm.isZero()
       vel = left.velocity.copy().vsub right.velocity
 
       fx = -@stiffness * (actual - @desiredLength) * (norm.x)
