@@ -1,6 +1,6 @@
 {
   "name": "UE-Physics",
-  "description": "Basic physics simulations using vector math",
+  "description": "Simplistic physics engine, including some basic collision detection",
   "version": "0.1.0",
   "repository": {
     "type": "git",
