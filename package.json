@@ -6,6 +6,9 @@
     "type": "git",
     "url": "https://github.com:wheeyls/physics.git"
   },
+  "scripts": {
+    "watch": "grunt watch"
+  },
   "devDependencies": {
     "grunt": "~0.4.5",
     "grunt-contrib-coffee": "~0.13.0",
