@@ -1,5 +1,5 @@
 (function() {
-  var Physics,
+  var Physics, global,
     slice = [].slice,
     extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
@@ -455,7 +455,7 @@
     module.exports = Physics;
   }
 
-  window.Physics = Physics;
+  this.Physics = Physics;
 
   (function(p, i) {
     return i.Euler = (function() {
@@ -706,6 +706,8 @@
     };
   })(Physics);
 
+  global = this;
+
   (function(p) {
     var perf;
     p.timer = function() {
@@ -790,13 +792,13 @@
           return me;
         },
         timerFn: function(fn) {
-          return window.requestAnimationFrame(fn);
+          return global.requestAnimationFrame(fn);
         }
       };
       p.pubsub(me);
       return me;
     };
-    perf = window.performance;
+    perf = global.performance;
     return p.timer.now = function() {
       if (perf && perf.now) {
         return perf.now() + perf.timing.navigationStart;

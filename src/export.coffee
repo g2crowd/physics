@@ -1,2 +1,2 @@
 module?.exports = Physics
-window.Physics = Physics
+this.Physics = Physics

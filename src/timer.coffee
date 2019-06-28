@@ -1,3 +1,5 @@
+global = this
+
 do (p = Physics) ->
   p.timer = ->
     running = false
@@ -71,13 +73,13 @@ do (p = Physics) ->
           me.timerFn me.ticker
         me
 
-      timerFn: (fn) -> window.requestAnimationFrame(fn)
+      timerFn: (fn) -> global.requestAnimationFrame(fn)
 
     p.pubsub me
 
     me
 
-  perf = window.performance
+  perf = global.performance
   p.timer.now = ->
     if perf && perf.now
       perf.now() + perf.timing.navigationStart
